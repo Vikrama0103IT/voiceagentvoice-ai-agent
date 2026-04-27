@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="hi-en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#050510">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Voice AI">
+  <title>Voice AI Agent</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    :root {
+      --bg: #050510;
+      --idle-bg: linear-gradient(135deg, #1E1B4B, #312E81);
+      --idle-ring: #6366F1;
+      --idle-glow: rgba(99,102,241,0.3);
+      --listen-bg: linear-gradient(135deg, #7F1D1D, #DC2626);
+      --listen-ring: #F87171;
+      --listen-glow: rgba(248,113,113,0.5);
+      --think-bg: linear-gradient(135deg, #7C3AED, #A78BFA);
+      --think-ring: #C4B5FD;
+      --think-glow: rgba(196,181,253,0.4);
+      --speak-bg: linear-gradient(135deg, #065F46, #10B981);
+      --speak-ring: #6EE7B7;
+      --speak-glow: rgba(110,231,183,0.4);
+    }
+
+    body {
+      background: var(--bg);
+      font-family: 'Outfit', 'Noto Sans Devanagari', sans-serif;
+      color: #E0E7FF;
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+      padding: 20px;
+      user-select: none;
+    }
+
+    /* Particles */
+    .particles { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }
+    .particle {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(200,180,255,0.15);
+      animation: drift var(--dur) ease-in-out var(--delay) infinite;
+    }
+
+    /* Ambient orbs */
+    .ambient-orb {
+      position: fixed;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .ambient-orb.top { top: -120px; right: -80px; width: 350px; height: 350px; background: radial-gradient(circle, rgba(99,102,241,0.12), transparent 70%); animation: float 22s ease-in-out infinite; }
+    .ambient-orb.bottom { bottom: -100px; left: -80px; width: 300px; height: 300px; background: radial-gradient(circle, rgba(231,76,138,0.08), transparent 70%); animation: float 28s ease-in-out 4s infinite; }
+
+    /* Main container */
+    .container { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 0; width: 100%; max-width: 420px; }
+
+    /* Title */
+    .title {
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 6px;
+      text-transform: uppercase;
+      opacity: 0.4;
+      margin-bottom: 50px;
+      animation: fadeIn 1s ease;
+    }
+
+    /* Orb wrapper */
+    .orb-wrapper {
+      position: relative;
+      width: 170px;
+      height: 170px;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .orb-wrapper.thinking { cursor: wait; }
+
+    /* Sound wave rings */
+    .wave-ring {
+      position: absolute;
+      border-radius: 50%;
+      border: 2px solid var(--ring-color, #6366F1);
+      opacity: 0;
+      transform: scale(0.8);
+      transition: all 0.5s ease;
+    }
+    .wave-ring.active {
+      opacity: 0.2;
+      transform: scale(1);
+      animation: ripple 2s ease-in-out infinite;
+    }
+
+    /* Glow */
+    .orb-glow {
+      position: absolute;
+      inset: -35px;
+      border-radius: 50%;
+      transition: all 0.6s ease;
+    }
+    .orb-glow.active { animation: orbPulse 2s ease-in-out infinite; }
+
+    /* Main orb */
+    .orb {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      transition: all 0.5s ease;
+    }
+    .orb.active { animation: orbPulse 2s ease-in-out infinite; }
+    .orb:active { transform: scale(0.95); }
+
+    /* Bars for listening */
+    .bars { display: flex; align-items: center; gap: 4px; }
+    .bar {
+      width: 5px;
+      border-radius: 3px;
+      background: #FCA5A5;
+    }
+
+    /* Spinner */
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 3px solid transparent;
+      border-top-color: #DDD6FE;
+      border-right-color: #DDD6FE;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    /* Status */
+    .status-text {
+      margin-top: 36px;
+      font-size: 15px;
+      font-weight: 500;
+      letter-spacing: 0.8px;
+      text-align: center;
+      transition: color 0.5s ease;
+      animation: fadeIn 0.5s ease;
+    }
+
+    /* Language badge */
+    .lang-badge {
+      margin-top: 12px;
+      padding: 4px 14px;
+      border-radius: 20px;
+      background: rgba(99,102,241,0.1);
+      border: 1px solid rgba(99,102,241,0.18);
+      color: #A5B4FC;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      animation: fadeIn 0.3s ease;
+    }
+
+    /* Text cards */
+    .card {
+      margin-top: 18px;
+      padding: 14px 22px;
+      border-radius: 16px;
+      font-size: 14px;
+      max-width: 100%;
+      width: 100%;
+      text-align: center;
+      animation: fadeIn 0.3s ease;
+      line-height: 1.6;
+      word-wrap: break-word;
+    }
+    .card-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      display: block;
+      margin-bottom: 6px;
+    }
+    .card.transcript { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: #CBD5E1; }
+    .card.transcript .card-label { color: #64748B; }
+    .card.reply { background: rgba(99,102,241,0.06); border: 1px solid rgba(99,102,241,0.12); color: #E0E7FF; }
+    .card.reply .card-label { color: #818CF8; }
+    .card.error { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.15); color: #FCA5A5; font-size: 13px; }
+
+    /* History toggle */
+    .history-btn {
+      margin-top: 20px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      color: #64748B;
+      padding: 8px 18px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      letter-spacing: 0.5px;
+      transition: all 0.2s;
+    }
+    .history-btn:hover { background: rgba(255,255,255,0.08); color: #A5B4FC; }
+
+    /* History panel */
+    .history-panel {
+      margin-top: 12px;
+      width: 100%;
+      max-height: 200px;
+      overflow-y: auto;
+      padding: 10px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 14px;
+      animation: fadeIn 0.3s ease;
+    }
+    .history-panel::-webkit-scrollbar { width: 4px; }
+    .history-panel::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.2); border-radius: 4px; }
+    .history-item {
+      padding: 8px 12px;
+      margin-bottom: 6px;
+      border-radius: 10px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .history-item.user { background: rgba(99,102,241,0.08); color: #C7D2FE; text-align: right; }
+    .history-item.ai { background: rgba(16,185,129,0.08); color: #A7F3D0; text-align: left; }
+    .history-item .role { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; opacity: 0.5; display: block; margin-bottom: 2px; }
+
+    /* Footer */
+    .footer {
+      position: fixed;
+      bottom: 16px;
+      color: rgba(148,163,184,0.25);
+      font-size: 11px;
+      letter-spacing: 0.8px;
+      text-align: center;
+    }
+
+    /* Animations */
+    @keyframes ripple { 0%, 100% { transform: scale(1); opacity: 0.25; } 50% { transform: scale(1.08); opacity: 0.08; } }
+    @keyframes orbPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes float { 0%, 100% { transform: translate(0,0); } 33% { transform: translate(30px,-20px); } 66% { transform: translate(-20px,15px); } }
+    @keyframes drift {
+      0%, 100% { transform: translate(0,0) scale(1); opacity: 0.15; }
+      25% { transform: translate(20px,-30px) scale(1.2); opacity: 0.3; }
+      50% { transform: translate(-15px,-50px) scale(0.8); opacity: 0.1; }
+      75% { transform: translate(25px,-20px) scale(1.1); opacity: 0.25; }
+    }
+    @keyframes barPulse {
+      0%, 100% { height: var(--min-h); }
+      50% { height: var(--max-h); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Particles -->
+  <div class="particles" id="particles"></div>
+
+  <!-- Ambient orbs -->
+  <div class="ambient-orb top"></div>
+  <div class="ambient-orb bottom"></div>
+
+  <div class="container">
+    <div class="title">Voice AI Agent</div>
+
+    <!-- Orb -->
+    <div class="orb-wrapper" id="orbWrapper" onclick="handleOrbClick()">
+      <!-- Wave rings -->
+      <div id="waveRings"></div>
+
+      <!-- Glow -->
+      <div class="orb-glow" id="orbGlow"></div>
+
+      <!-- Main orb -->
+      <div class="orb" id="mainOrb">
+        <div id="orbContent"></div>
+      </div>
+    </div>
+
+    <!-- Status -->
+    <div class="status-text" id="statusText">Tap karke bolein — Hindi ya English</div>
+
+    <!-- Language badge -->
+    <div class="lang-badge" id="langBadge" style="display:none;"></div>
+
+    <!-- Transcript -->
+    <div class="card transcript" id="transcriptCard" style="display:none;">
+      <span class="card-label">Aapne kaha</span>
+      <span id="transcriptText"></span>
+    </div>
+
+    <!-- Reply -->
+    <div class="card reply" id="replyCard" style="display:none;">
+      <span class="card-label">AI ka jawaab</span>
+      <span id="replyText"></span>
+    </div>
+
+    <!-- Error -->
+    <div class="card error" id="errorCard" style="display:none;"></div>
+
+    <!-- History -->
+    <button class="history-btn" id="historyBtn" onclick="toggleHistory()" style="display:none;">Chat History</button>
+    <div class="history-panel" id="historyPanel" style="display:none;"></div>
+  </div>
+
+  <div class="footer">Auto-detects Hindi & English</div>
+
+  <script>
+    // --- STATE ---
+    let status = "idle"; // idle | listening | thinking | speaking
+    let transcript = "";
+    let history = [];
+    let recognition = null;
+    let finalTranscriptGlobal = "";
+    const synth = window.speechSynthesis;
+
+    const SYSTEM_PROMPT = `You are a friendly voice AI assistant. You speak in Hindi, English, or Hinglish — matching whatever language the user speaks. Keep responses SHORT (2-4 sentences max) since they will be spoken aloud. Be warm, natural, and conversational — like talking to a friend. Never use markdown, bullet points, or special characters. Just plain spoken language. If the user speaks Hindi, reply in Hindi. If English, reply in English. If Hinglish, reply in Hinglish.`;
+
+    const colors = {
+      idle:      { bg: "linear-gradient(135deg, #1E1B4B, #312E81)", ring: "#6366F1", glow: "rgba(99,102,241,0.3)",  shadow: "0 0 60px rgba(99,102,241,0.3)" },
+      listening: { bg: "linear-gradient(135deg, #7F1D1D, #DC2626)", ring: "#F87171", glow: "rgba(248,113,113,0.5)", shadow: "0 0 60px rgba(248,113,113,0.5)" },
+      thinking:  { bg: "linear-gradient(135deg, #7C3AED, #A78BFA)", ring: "#C4B5FD", glow: "rgba(196,181,253,0.4)", shadow: "0 0 60px rgba(196,181,253,0.4)" },
+      speaking:  { bg: "linear-gradient(135deg, #065F46, #10B981)", ring: "#6EE7B7", glow: "rgba(110,231,183,0.4)", shadow: "0 0 60px rgba(110,231,183,0.4)" },
+    };
+
+    const statusLabels = {
+      idle: "Tap karke bolein — Hindi ya English",
+      listening: "Sun raha hoon... bolte rahiye",
+      thinking: "Soch raha hoon...",
+      speaking: "Bol raha hoon... (tap to stop)",
+    };
+
+    // --- INIT PARTICLES ---
+    (function initParticles() {
+      const container = document.getElementById("particles");
+      for (let i = 0; i < 18; i++) {
+        const p = document.createElement("div");
+        p.className = "particle";
+        const size = 2 + Math.random() * 3;
+        p.style.cssText = `left:${Math.random()*100}%;top:${Math.random()*100}%;width:${size}px;height:${size}px;--dur:${15+Math.random()*25}s;--delay:${Math.random()*-20}s;`;
+        container.appendChild(p);
+      }
+    })();
+
+    // --- INIT WAVE RINGS ---
+    (function initWaveRings() {
+      const container = document.getElementById("waveRings");
+      for (let i = 0; i < 5; i++) {
+        const ring = document.createElement("div");
+        ring.className = "wave-ring";
+        const inset = -12 - i * 16;
+        ring.style.cssText = `inset:${inset}px;animation-delay:${i*0.3}s;`;
+        ring.dataset.index = i;
+        container.appendChild(ring);
+      }
+    })();
+
+    // --- PRELOAD VOICES ---
+    synth.getVoices();
+    synth.onvoiceschanged = () => synth.getVoices();
+
+    // --- DETECT LANGUAGE ---
+    function detectLang(text) {
+      return /[\u0900-\u097F]/.test(text) ? "hi-IN" : "en-IN";
+    }
+
+    // --- UPDATE UI ---
+    function updateUI() {
+      const c = colors[status];
+      const orb = document.getElementById("mainOrb");
+      const glow = document.getElementById("orbGlow");
+      const wrapper = document.getElementById("orbWrapper");
+      const statusEl = document.getElementById("statusText");
+      const content = document.getElementById("orbContent");
+
+      // Orb
+      orb.style.background = c.bg;
+      orb.style.boxShadow = c.shadow + ", inset 0 -4px 12px rgba(0,0,0,0.3)";
+      orb.className = "orb" + (status !== "idle" ? " active" : "");
+
+      // Glow
+      glow.style.background = `radial-gradient(circle, ${c.glow}, transparent 70%)`;
+      glow.className = "orb-glow" + (status !== "idle" ? " active" : "");
+
+      // Wrapper
+      wrapper.className = "orb-wrapper" + (status === "thinking" ? " thinking" : "");
+
+      // Wave rings
+      document.querySelectorAll(".wave-ring").forEach(ring => {
+        ring.style.borderColor = c.ring;
+        const isActive = status === "listening" || status === "speaking";
+        ring.className = "wave-ring" + (isActive ? " active" : "");
+      });
+
+      // Status text
+      statusEl.style.color = c.ring;
+      statusEl.textContent = statusLabels[status];
+
+      // Orb content
+      if (status === "idle") {
+        content.innerHTML = `<svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#C7D2FE" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="23"/>
+          <line x1="8" y1="23" x2="16" y2="23"/>
+        </svg>`;
+      } else if (status === "listening") {
+        let barsHtml = '<div class="bars">';
+        for (let i = 0; i < 5; i++) {
+          const minH = 12 + Math.random() * 8;
+          const maxH = 30 + Math.random() * 18;
+          barsHtml += `<div class="bar" style="height:${minH}px;--min-h:${minH}px;--max-h:${maxH}px;animation:barPulse ${0.3+i*0.12}s ease-in-out infinite alternate;"></div>`;
+        }
+        barsHtml += '</div>';
+        content.innerHTML = barsHtml;
+      } else if (status === "thinking") {
+        content.innerHTML = '<div class="spinner"></div>';
+      } else if (status === "speaking") {
+        content.innerHTML = `<svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#A7F3D0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+        </svg>`;
+      }
+    }
+
+    // --- SPEAK ---
+    function speak(text) {
+      return new Promise((resolve) => {
+        synth.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        const lang = detectLang(text);
+        const voices = synth.getVoices();
+
+        if (lang === "hi-IN") {
+          const v = voices.find(v => v.lang.startsWith("hi"));
+          if (v) utter.voice = v;
+          utter.lang = "hi-IN";
+        } else {
+          const v = voices.find(v => v.lang.startsWith("en") && v.name.includes("Google")) || voices.find(v => v.lang.startsWith("en"));
+          if (v) utter.voice = v;
+          utter.lang = "en-IN";
+        }
+
+        utter.rate = 1.0;
+        utter.pitch = 1.0;
+        utter.onend = resolve;
+        utter.onerror = resolve;
+        synth.speak(utter);
+      });
+    }
+
+    // --- AI RESPONSE ---
+    async function getAIResponse(userText) {
+      const msgs = [...history, { role: "user", content: userText }];
+
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          system: SYSTEM_PROMPT,
+          messages: msgs,
+        }),
+      });
+
+      const data = await response.json();
+      const text = data.content?.filter(b => b.type === "text").map(b => b.text).join(" ")
+        || "Sorry, samajh nahi aaya. Dobara boliye.";
+
+      history.push({ role: "user", content: userText }, { role: "assistant", content: text });
+      return text;
+    }
+
+    // --- PROCESS RESPONSE ---
+    async function processResponse(text) {
+      if (!text.trim()) {
+        setError("Kuch sun nahi paaya. Dobara try karein.");
+        status = "idle";
+        updateUI();
+        return;
+      }
+
+      const lang = detectLang(text);
+      showLangBadge(lang === "hi-IN" ? "Hindi" : "English");
+
+      status = "thinking";
+      updateUI();
+
+      try {
+        const aiReply = await getAIResponse(text.trim());
+        showReply(aiReply);
+        status = "speaking";
+        updateUI();
+        await speak(aiReply);
+        status = "idle";
+        updateUI();
+        updateHistoryBtn();
+      } catch (err) {
+        setError("AI se baat nahi ho paayi. Network check karein.");
+        status = "idle";
+        updateUI();
+      }
+    }
+
+    // --- START LISTENING ---
+    function startListening() {
+      hideError();
+      hideLangBadge();
+      synth.cancel();
+
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) {
+        setError("Aapka browser Speech Recognition support nahi karta. Chrome use karein.");
+        return;
+      }
+
+      recognition = new SR();
+      recognition.lang = "hi-IN";
+      recognition.interimResults = true;
+      recognition.continuous = false;
+      recognition.maxAlternatives = 1;
+      finalTranscriptGlobal = "";
+
+      recognition.onstart = () => {
+        status = "listening";
+        updateUI();
+        hideTranscript();
+        hideReply();
+      };
+
+      recognition.onresult = (e) => {
+        let interim = "", final = "";
+        for (let i = 0; i < e.results.length; i++) {
+          const t = e.results[i][0].transcript;
+          if (e.results[i].isFinal) final += t;
+          else interim += t;
+        }
+        finalTranscriptGlobal = final;
+        transcript = final + interim;
+        showTranscript(transcript);
+      };
+
+      recognition.onend = async () => {
+        const text = finalTranscriptGlobal || transcript || "";
+        await processResponse(text);
+      };
+
+      recognition.onerror = (e) => {
+        if (e.error === "no-speech") setError("Koi awaaz nahi aayi. Mic ke paas bol ke dekhein.");
+        else if (e.error === "not-allowed") setError("Microphone ki permission dein. Browser settings mein allow karein.");
+        else setError("Error: " + e.error);
+        status = "idle";
+        updateUI();
+      };
+
+      recognition.start();
+    }
+
+    // --- ORB CLICK ---
+    function handleOrbClick() {
+      if (status === "idle") startListening();
+      else if (status === "listening") { if (recognition) recognition.stop(); }
+      else if (status === "speaking") { synth.cancel(); status = "idle"; updateUI(); }
+    }
+
+    // --- UI HELPERS ---
+    function showTranscript(text) {
+      const card = document.getElementById("transcriptCard");
+      document.getElementById("transcriptText").textContent = text;
+      card.style.display = "block";
+    }
+    function hideTranscript() { document.getElementById("transcriptCard").style.display = "none"; }
+
+    function showReply(text) {
+      const card = document.getElementById("replyCard");
+      document.getElementById("replyText").textContent = text;
+      card.style.display = "block";
+    }
+    function hideReply() { document.getElementById("replyCard").style.display = "none"; }
+
+    function setError(msg) {
+      const card = document.getElementById("errorCard");
+      card.textContent = msg;
+      card.style.display = "block";
+      setTimeout(() => { card.style.display = "none"; }, 5000);
+    }
+    function hideError() { document.getElementById("errorCard").style.display = "none"; }
+
+    function showLangBadge(lang) {
+      const badge = document.getElementById("langBadge");
+      badge.textContent = "Auto-detected: " + lang;
+      badge.style.display = "block";
+    }
+    function hideLangBadge() { document.getElementById("langBadge").style.display = "none"; }
+
+    function updateHistoryBtn() {
+      document.getElementById("historyBtn").style.display = history.length > 0 ? "block" : "none";
+    }
+
+    function toggleHistory() {
+      const panel = document.getElementById("historyPanel");
+      if (panel.style.display === "none") {
+        let html = "";
+        history.forEach(item => {
+          const cls = item.role === "user" ? "user" : "ai";
+          const label = item.role === "user" ? "You" : "AI";
+          html += `<div class="history-item ${cls}"><span class="role">${label}</span>${item.content}</div>`;
+        });
+        panel.innerHTML = html;
+        panel.style.display = "block";
+        panel.scrollTop = panel.scrollHeight;
+      } else {
+        panel.style.display = "none";
+      }
+    }
+
+    // --- INIT ---
+    updateUI();
+
+    // --- SERVICE WORKER REGISTRATION ---
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("sw.js").catch(() => {});
+    }
+  </script>
+</body>
+</html>
